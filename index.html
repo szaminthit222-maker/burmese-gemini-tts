@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Burmese Gemini TTS Director</title>
+<style>
+:root{--bg:#0b1020;--card:#121a2d;--line:#263454;--text:#eef3ff;--muted:#9eabc7;--accent:#7c5cff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#080c18,#111a31);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans Myanmar",sans-serif}
+.wrap{max-width:1100px;margin:auto;padding:24px}.hero{padding:28px 0}.hero h1{font-size:32px;margin:0 0 8px}.hero p{color:var(--muted);margin:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:rgba(18,26,45,.92);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 40px #0004}
+label{display:block;color:var(--muted);font-size:13px;margin:12px 0 6px}input,textarea,select{width:100%;border:1px solid var(--line);background:#0b1223;color:var(--text);border-radius:10px;padding:11px;font:inherit}textarea{min-height:150px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}button{border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer;background:var(--accent);color:white}button.secondary{background:#202b47}button:disabled{opacity:.5;cursor:not-allowed}
+#output{min-height:500px;white-space:pre-wrap;line-height:1.7;font-size:15px}.status{color:#aeb9d5;margin-top:10px}.audio{width:100%;margin-top:12px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}.hero h1{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>🎙️ Burmese Gemini TTS Director</h1>
+    <p>Timestamp + Burmese Voiceover + English Audio Tags + Gemini TTS</p>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>🎬 Director Input</h2>
+      <div class="row">
+        <div><label>Speaker Name</label><input id="speaker" value="Narrator"></div>
+        <div><label>Role</label><select id="role"><option>Narrator</option><option>Recapper</option><option>Vlogger</option></select></div>
+      </div>
+      <label>Scene / Visual Atmosphere</label><textarea id="scene" placeholder="ဥပမာ - ညဘက် မိုးရွာနေတဲ့ မြို့ပြလမ်း..."></textarea>
+      <div class="row">
+        <div><label>Style</label><input id="style" value="cinematic, dramatic, natural"></div>
+        <div><label>Pacing</label><select id="pacing"><option>slow</option><option selected>medium</option><option>fast</option><option>dynamic</option></select></div>
+      </div>
+      <label>Burmese Speaking Tone</label>
+      <input id="tone" value="သဘာဝကျသော မြန်မာစကားပြောဟန်၊ movie recap ပုံစံ">
+      <div class="row">
+        <div><label>Duration (seconds)</label><input id="duration" type="number" min="10" max="600" value="60"></div>
+        <div><label>Gemini Voice</label><select id="voice"><option>Kore</option><option>Puck</option><option>Enceladus</option><option>Charon</option><option>Fenrir</option></select></div>
+      </div>
+      <label>Story / Raw Text</label>
+      <textarea id="story" placeholder="ဒီနေရာမှာ ဇာတ်လမ်း၊ subtitle၊ script draft စတာတွေ ထည့်ပါ..."></textarea>
+      <div class="buttons">
+        <button id="gen">✨ Generate Script</button>
+        <button id="audioBtn" class="secondary" disabled>🔊 Generate Audio</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>📝 Voiceover Ready Output</h2>
+      <textarea id="output" placeholder="Generated script will appear here..."></textarea>
+      <div class="buttons">
+        <button class="secondary" id="copy">📋 Copy</button>
+        <button class="secondary" id="download">⬇️ TXT</button>
+      </div>
+      <audio id="player" class="audio" controls></audio>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let lastScript = "";
+
+function payload(){
+  return {
+    speakerName:$("speaker").value, role:$("role").value, scene:$("scene").value,
+    style:$("style").value, pacing:$("pacing").value, tone:$("tone").value,
+    duration:$("duration").value, voice:$("voice").value, story:$("story").value
+  };
+}
+
+$("gen").onclick = async () => {
+  $("gen").disabled = true; $("status").textContent = "Generating Burmese script...";
+  try{
+    const r = await fetch("/api/script",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload())});
+    const j = await r.json(); if(!r.ok) throw new Error(j.error);
+    lastScript=j.script; $("output").value=lastScript; $("audioBtn").disabled=false;
+    $("status").textContent="✅ Script ready.";
+  }catch(e){$("status").textContent="❌ "+e.message}
+  finally{$("gen").disabled=false}
+};
+
+$("audioBtn").onclick = async () => {
+  $("audioBtn").disabled=true; $("status").textContent="Generating Gemini TTS audio...";
+  try{
+    const p=payload(); p.transcript=$("output").value;
+    const r=await fetch("/api/audio",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error);
+    $("player").src=j.audio; $("player").play().catch(()=>{});
+    $("status").textContent="✅ Audio ready.";
+  }catch(e){$("status").textContent="❌ "+e.message}
+  finally{$("audioBtn").disabled=false}
+};
+
+$("copy").onclick=async()=>{await navigator.clipboard.writeText($("output").value);$("status").textContent="📋 Copied."};
+$("download").onclick=()=>{
+  const blob=new Blob([$("output").value],{type:"text/plain;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="burmese-voiceover.txt";a.click();
+};
+</script>
+</body>
+</html>
