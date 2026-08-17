@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Burmese Gemini TTS Voiceover Director</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0f172a;color:#e5e7eb;margin:0;padding:18px}
+.app{max-width:900px;margin:auto}.card{background:#1e293b;border-radius:16px;padding:18px;margin:12px 0}
+h1{font-size:24px;margin:0 0 8px}label{display:block;margin:12px 0 6px;font-weight:700}
+input,textarea,select,button{width:100%;box-sizing:border-box;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#fff;padding:12px;font:inherit}
+textarea{min-height:130px;resize:vertical}button{background:#2563eb;border:0;font-weight:700;cursor:pointer;margin-top:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.muted{color:#94a3b8;font-size:13px}.out{white-space:pre-wrap;line-height:1.7;background:#020617;padding:14px;border-radius:10px}
+@media(max-width:650px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="card">
+<h1>🎙️ Burmese Gemini TTS Voiceover Director</h1>
+<div class="muted">Timestamp-synchronized Burmese voiceover script with inline English audio tags.</div>
+</div>
+
+<div class="card">
+<label>Scene / Video Description</label>
+<textarea id="scene" placeholder="ဥပမာ - လူငယ်တစ်ယောက် ညဘက်မြို့ထဲမှာ တစ်ယောက်တည်း လမ်းလျှောက်နေသည်..."></textarea>
+<div class="row">
+<div><label>Speaker Name</label><input id="name" value="Burmese Narrator"></div>
+<div><label>Role</label><select id="role"><option>Narrator</option><option>Recapper</option><option>Vlogger</option></select></div>
+</div>
+<div class="row">
+<div><label>Duration (seconds)</label><input id="duration" type="number" value="30" min="5"></div>
+<div><label>Style</label><select id="style"><option>dramatic</option><option>excited</option><option>calm</option><option>emotional</option><option>fast</option></select></div>
+</div>
+<button onclick="generate()">Generate Voiceover Script</button>
+</div>
+
+<div class="card">
+<label>Gemini API Key (optional)</label>
+<input id="key" type="password" placeholder="AIza...">
+<div class="muted">Personal testing အတွက်သာ browser ထဲမှာ API key ထည့်ပါ။ Public website အတွက် server-side key သုံးပါ။</div>
+<button onclick="tts()">Generate Gemini TTS Audio</button>
+</div>
+
+<div class="card">
+<label>VOICEOVER READY</label>
+<div id="out" class="out">Script will appear here...</div>
+<button onclick="copyOut()">Copy Script</button>
+</div>
+</div>
+
+<script>
+let current="";
+function tags(style){
+ if(style==="excited") return "[excited] [fast]";
+ if(style==="fast") return "[fast]";
+ if(style==="calm") return "[whispers]";
+ if(style==="emotional") return "[dramatic]";
+ return "[dramatic]";
+}
+function generate(){
+ const scene=document.getElementById("scene").value.trim()||"A dramatic scene";
+ const name=document.getElementById("name").value||"Burmese Narrator";
+ const role=document.getElementById("role").value;
+ const dur=Math.max(5,parseInt(document.getElementById("duration").value)||30);
+ const style=document.getElementById("style").value;
+ const step=5, lines=[];
+ for(let s=0;s<dur;s+=step){
+   const e=Math.min(s+step,dur);
+   const mm=n=>String(Math.floor(n/60)).padStart(2,"0");
+   lines.push(`[${mm(s)}:${String(s%60).padStart(2,"0")} - ${mm(e)}:${String(e%60).padStart(2,"0")}] ${tags(style)} [Burmese speech for this scene...]`);
+ }
+ current=`AUDIO PROFILE
+Name: ${name}
+Role: ${role}
+
+THE SCENE
+${scene}
+
+DIRECTOR'S NOTES
+* Style: ${style} vocal emotion and energy
+* Pacing: ${style==="fast"?"fast":"natural conversational"}
+* Tone: Spoken Burmese - စကားပြောဟန်
+
+TIMED TRANSCRIPT (VOICEOVER READY)
+${lines.join("\n")}`;
+ document.getElementById("out").textContent=current;
+}
+async function tts(){
+ const key=document.getElementById("key").value.trim();
+ if(!key){alert("Gemini API Key ထည့်ပါ။");return}
+ if(!current) generate();
+ const text=current.split("TIMED TRANSCRIPT (VOICEOVER READY)")[1]||current;
+ const body={contents:[{parts:[{text:`Read this Burmese voiceover naturally. Preserve emotion and pacing. Do not speak the English audio tags aloud.\n${text}`}]}],generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Kore"}}}}};
+ try{
+  const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key="+encodeURIComponent(key),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!r.ok) throw new Error(j.error?.message||"Gemini API error");
+  const b64=j.candidates?.[0]?.content?.parts?.find(p=>p.inlineData)?.inlineData?.data;
+  if(!b64) throw new Error("Audio data မရပါ");
+  const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+  const blob=new Blob([bytes],{type:"audio/wav"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="burmese-voiceover.wav";a.click();
+ }catch(e){alert(e.message)}
+}
+async function copyOut(){await navigator.clipboard.writeText(current||document.getElementById("out").textContent);alert("Copied!")}
+generate();
+</script>
+</body>
+</html>
