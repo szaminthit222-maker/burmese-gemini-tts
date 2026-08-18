@@ -133,7 +133,7 @@ ${input.transcript}`;
 
 async function serveFile(res, pathname) {
   const safe = pathname === "/" ? "/index.html" : pathname;
-  const file = public / safe.replace(/^\/+/, "");
+  const file = path.join(public, safe.replace(/^\/+/, ""));
   if (!existsSync(file)) return send(res, 404, "Not found", "text/plain");
   const ext = path.extname(file);
   const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
